@@ -215,6 +215,106 @@ Optional:
 - **Architektur**: Nur Linux x86_64 und aarch64 werden unterstützt
 - **Root-Befugnisse**: Die Tarball-Methode weigert sich, als Root ausgeführt zu werden
 
+## Kurzreferenz
+
+### Häufige Installer-Befehle
+
+| Befehl | Zweck |
+|--------|-------|
+| `./install-neovim.sh` | Standard-Installation (stabile Version) |
+| `./install-neovim.sh --dry-run` | Geplante Änderungen anzeigen, ohne zu installieren |
+| `./install-neovim.sh --version nightly` | Nightly-Build installieren |
+| `./install-neovim.sh --version v0.10.2` | Spezifische Version installieren |
+| `./install-neovim.sh --check-deps` | Optionale Abhängigkeiten überprüfen |
+| `./install-neovim.sh --rollback` | Zur vorherigen Version zurückwechseln |
+| `./install-neovim.sh --uninstall` | Installation entfernen |
+| `./install-neovim.sh --with-plugins` | Mit Plugins (Treesitter, Mason, LSP, Rechtschreibung) erweitern |
+| `./install-neovim.sh --with-plugins --no-sync --yes` | Plugins konfigurieren, aber Lazy/Mason nicht synkronisieren |
+| `./install-neovim.sh --method flatpak` | Flatpak-Installation |
+| `./install-neovim.sh --method package --allow-layering` | RPM-OSTree-Layering ohne Bestätigung |
+
+### Häufige Neovim-Befehle und Tastenkürzel
+
+**Dateinavi­gation und Suche (Telescope & Tree)**
+
+| Tastenkürzel | Modus | Funktion |
+|---|---|---|
+| `<Space>ff` | n | Dateien suchen |
+| `<Space>fa` | n | Alle Dateien anzeigen (auch versteckte) |
+| `<Space>fw` | n | Text in Dateien durchsuchen (live grep) |
+| `<Space>fh` | n | Hilfeseiten durchsuchen |
+| `<Space>fz` | n | In aktuellem Buffer suchen |
+| `<Space>fo` | n | Zuletzt geöffnete Dateien |
+| `<C-n>` | n | Dateibaum (nvim-tree) umschalten |
+| `<Space>e` | n | Auf Dateibaum fokussieren |
+
+**Buffer und Tabs**
+
+| Tastenkürzel | Modus | Funktion |
+|---|---|---|
+| `<Space>b` | n | Neuer Buffer |
+| `<Tab>` | n | Nächster Buffer |
+| `<S-Tab>` | n | Vorheriger Buffer |
+| `<Space>x` | n | Buffer schließen |
+
+**LSP, Formatierung und Diagnose**
+
+| Tastenkürzel | Modus | Funktion |
+|---|---|---|
+| `<Space>fm` | n, x | Datei formatieren |
+| `<Space>ds` | n | Diagnose in Quickfix laden |
+| `:Lazy` | n | Plugin-Manager öffnen |
+| `:Mason` | n | LSP/Tools-Manager |
+| `:MasonInstall <name>` | n | Spezifisches Tool installieren |
+| `:checkhealth` | n | System-Health prüfen |
+| `:TSInstall <parser>` | n | Treesitter-Parser installieren |
+| `:TSUpdate` | n | Treesitter-Parser aktualisieren |
+
+**Flash-Navigation (flash.nvim)**
+
+| Tastenkürzel | Modus | Funktion |
+|---|---|---|
+| `s` | n, x, o | Zu Zeichen springen |
+| `S` | n, x, o | Treesitter-Objekt anvisieren |
+| `r` | o | Remote-Flash (in Operator-pending) |
+| `R` | o, x | Treesitter-Suche |
+| `<C-s>` | c | Flash in Suche umschalten |
+
+**Rechtschreibprüfung (English + Deutsch)**
+
+| Tastenkürzel | Modus | Funktion |
+|---|---|---|
+| `]s` | n | Nächster Fehler |
+| `[s` | n | Vorheriger Fehler |
+| `z=` | n | Vorschläge anzeigen |
+| `zg` | n | Wort akzeptieren |
+| `zw` | n | Wort als falsch markieren |
+| `:set spell` | n | Rechtschreibung aktivieren |
+| `:set nospell` | n | Rechtschreibung deaktivieren |
+
+(Rechtschreibung wird automatisch für markdown, text und gitcommit aktiviert.)
+
+**Fenster, Terminal und Extras**
+
+| Tastenkürzel | Modus | Funktion |
+|---|---|---|
+| `<C-h/j/k/l>` | n | Zu Fenster wechseln (links/unten/oben/rechts) |
+| `<Space>h` | n | Horizontales Terminal öffnen |
+| `<Space>v` | n | Vertikales Terminal öffnen |
+| `<A-i>` | n, t | Schwebendes Terminal umschalten |
+| `<C-x>` | t | Terminal-Modus beenden |
+| `<Space>th` | n | Design-Theme wählen |
+| `<Space>wK` | n | Alle Tastenkürzel anzeigen |
+| `<Space>ch` | n | NvCheatsheet umschalten |
+| `<Space>/` | n, v | Zeilen kommentieren/dekommentieren |
+
+**Eigene Mappings**
+
+| Tastenkürzel | Modus | Funktion |
+|---|---|---|
+| `;` | n | Kommando-Modus (Ersatz für `:`) |
+| `jk` | i | Escape |
+
 ## Lizenz
 
 Dieses Projekt wird unter der MIT-Lizenz veröffentlicht. Details in der Datei [LICENSE](LICENSE).

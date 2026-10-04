@@ -146,6 +146,109 @@ The script does not edit shell rc files automatically; you must add this line ma
 ./install-neovim.sh --check-deps                 # List missing optional dependencies
 ```
 
+## Quick Reference
+
+### Common Installer Commands
+
+| Command | Purpose |
+|---------|---------|
+| `./install-neovim.sh` | Install latest stable version |
+| `./install-neovim.sh --dry-run` | Preview changes without installing |
+| `./install-neovim.sh --version v0.10.2` | Install a specific version |
+| `./install-neovim.sh --version nightly` | Install nightly build |
+| `./install-neovim.sh --check-deps` | List missing optional runtime dependencies |
+| `./install-neovim.sh --with-plugins` | Extend NvChad config with parsers, LSP tools, and plugins |
+| `./install-neovim.sh --with-plugins --no-sync` | Set up plugins without headless sync |
+| `./install-neovim.sh --with-plugins --yes` | Auto-answer prompts during plugin setup |
+| `./install-neovim.sh --rollback` | Switch to the previously installed version |
+| `./install-neovim.sh --uninstall` | Remove the tarball installation |
+| `./install-neovim.sh --method package --allow-layering` | Use package manager with rpm-ostree layering |
+
+### Common Neovim Commands and Shortcuts
+
+This setup includes NvChad v2.5, Telescope, nvim-tree, flash.nvim, and support for en_us and de_de spell checking. The leader key is `<Space>`.
+
+**File Navigation and Search (Telescope):**
+- `<Space>ff` (n) — Find files
+- `<Space>fa` (n) — Find all files (including hidden)
+- `<Space>fw` (n) — Live grep
+- `<Space>fb` (n) — Find in buffers
+- `<Space>fh` (n) — Search help pages
+- `<Space>fz` (n) — Find in current buffer
+- `<Space>fo` (n) — Find recently opened files
+- `<Space>ma` (n) — Find marks
+- `<Space>cm` (n) — Git commits
+- `<Space>gt` (n) — Git status
+
+**File Tree Navigation (nvim-tree):**
+- `<C-n>` (n) — Toggle file tree
+- `<Space>e` (n) — Focus file tree
+
+**Buffers and Tabs:**
+- `<Tab>` (n) — Next buffer
+- `<S-Tab>` (n) — Previous buffer
+- `<Space>b` (n) — New buffer
+- `<Space>x` (n) — Close buffer
+
+**LSP, Formatting, and Diagnostics:**
+- `<Space>fm` (n/v) — Format file (LSP or fallback)
+- `<Space>ds` (n) — Show diagnostic loclist
+
+**Flash Motion (fast jumping):**
+- `s` (n/v/o) — Jump to character
+- `S` (n/v/o) — Treesitter-aware jump
+- `r` (o) — Remote flash (operator-pending)
+- `R` (o/v) — Treesitter search
+- `<C-s>` (c) — Toggle search mode
+
+**Comments:**
+- `<Space>/` (n) — Toggle line comment
+- `<Space>/` (v) — Toggle selection comment
+
+**Editor Utilities:**
+- `<C-s>` (n) — Save file
+- `<C-c>` (n) — Copy entire file
+- `<Space>n` (n) — Toggle line numbers
+- `<Space>rn` (n) — Toggle relative line numbers
+- `<Space>ch` (n) — Open NvChad cheatsheet
+- `<Space>wK` (n) — Show all available keymaps
+- `<Space>wk` (n) — Search keymaps by prefix
+
+**Terminal:**
+- `<Space>h` (n) — Open horizontal terminal
+- `<Space>v` (n) — Open vertical terminal
+- `<A-h>` (n/t) — Toggle horizontal terminal
+- `<A-v>` (n/t) — Toggle vertical terminal
+- `<A-i>` (n/t) — Toggle floating terminal
+- `<C-x>` (t) — Exit terminal mode
+
+**Window Navigation:**
+- `<C-h>` (n) — Move to left window
+- `<C-j>` (n) — Move to down window
+- `<C-k>` (n) — Move to up window
+- `<C-l>` (n) — Move to right window
+
+**User Customizations:**
+- `;` (n) — Enter command mode (alternative to `:`)
+- `jk` (i) — Exit insert mode
+
+**Spell Checking (auto-enabled for markdown, text, gitcommit):**
+- Languages: English (en_us) and German (de_de)
+- `]s` — Jump to next misspelled word
+- `[s` — Jump to previous misspelled word
+- `z=` — Show spelling suggestions
+- `zg` — Add word to dictionary
+- `zw` — Mark word as misspelled
+- `:set spell` / `:set nospell` — Toggle spell checking
+
+**Plugin Management Commands:**
+- `:Lazy` — Open Lazy plugin manager
+- `:Mason` — Open Mason package installer
+- `:checkhealth` — Run Neovim health checks
+- `:TSInstall <parser>` — Install a Treesitter parser
+- `:TSUpdate` — Update all Treesitter parsers
+- `:MasonInstall <package>` — Install a Mason package
+
 ## Optional Dependencies (--check-deps)
 
 The `--check-deps` action reports missing optional Neovim runtime dependencies:
