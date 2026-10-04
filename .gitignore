@@ -1,0 +1,12 @@
+# AI assistant instruction files
+CLAUDE.md
+AGENTS.md
+AGENT.md
+.cursorrules
+.windsurfrules
+.clinerules
+GEMINI.md
+.github/copilot-instructions.md
+
+# Compressed files
+*.zip
