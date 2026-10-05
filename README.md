@@ -116,6 +116,23 @@ export PATH="$HOME/.local/bin:$PATH"
 
 The script does not edit shell rc files automatically; you must add this line manually.
 
+### Aliases
+
+By default, the tarball install and `--rollback` actions also create symlinks in `~/.local/bin` named `vim`, `vi`, and `neovim`, all pointing to the same Neovim binary as `nvim`. This allows these names to open Neovim interchangeably.
+
+To skip alias creation, use `--no-aliases`:
+
+```bash
+./install-neovim.sh --no-aliases
+./install-neovim.sh --rollback --no-aliases
+```
+
+Aliases are created only for the tarball method and `--rollback`; they are never created for `--method flatpak`, `--method package`, `--method brew`, `--install-deps`, `--check-deps`, or `--uninstall`.
+
+The script uses a no-clobber approach: if a file or symlink already exists at `~/.local/bin/vim`, `~/.local/bin/vi`, or `~/.local/bin/neovim` and does not point to this script's own `nvim` binary, it is skipped with a warning and left untouched. This allows you to keep your own `vi` or `vim` links if you have created them.
+
+The aliases only shadow system `vi`/`vim` (usually at `/usr/bin/vi` and `/usr/bin/vim`) if `~/.local/bin` appears before `/usr/bin` on your `PATH`. Direct invocations like `/usr/bin/vim` or root/sudo sessions are never affected by these aliases.
+
 ## Flags and Options
 
 | Flag | Argument | Description |
@@ -123,12 +140,14 @@ The script does not edit shell rc files automatically; you must add this line ma
 | `--version` | `stable` \| `nightly` \| `vX.Y.Z` | Release to install. Default: `stable`. |
 | `--method` | `tarball` \| `flatpak` \| `package` \| `brew` | Installation method. Default: `tarball`. |
 | `--allow-layering` | None | On rpm-ostree atomic hosts with `--method package`, skip the interactive prompt and proceed with layering (non-interactive sessions otherwise refuse). Requires a reboot afterward. |
+| `--install-deps` | None | Install missing tree-sitter CLI via Homebrew. Finds brew on PATH or in the standard Homebrew Linux locations; never installs Homebrew itself or uses sudo. Prompts for confirmation (default no) unless `--yes`/`-y`. Combinable with `--with-plugins` (dependencies first). Mutually exclusive with `--uninstall`, `--rollback`, `--check-deps`. |
+| `--no-aliases` | None | Skip creating `neovim`, `vim`, `vi` command aliases in `~/.local/bin`. Valid only with the default install action or `--rollback`; aliases are not created for `--method flatpak`, `--method package`, `--method brew`, `--install-deps`, `--check-deps`, or `--uninstall`. Existing files or symlinks to other locations are never overwritten. |
 | `--uninstall` | None | Remove the tarball-method installation (versions directory, symlinks). |
 | `--rollback` | None | Switch back to the previously installed tarball version. |
 | `--check-deps` | None | Report missing optional runtime dependencies and exit (no install). |
 | `--with-plugins` | None | Extend an existing NvChad/lazy.nvim config with treesitter parsers, Mason tools, spell support, and extras. |
 | `--no-sync` | None | With `--with-plugins`, write managed files and fetch spell dictionaries but skip the headless Lazy sync and Mason install. |
-| `--yes`, `-y` | None | Assume yes on confirmation prompts (`--uninstall`, `--with-plugins` file writes). Does not apply to rpm-ostree layering. |
+| `--yes`, `-y` | None | Assume yes on confirmation prompts (`--uninstall`, `--install-deps`, `--with-plugins` file writes). Does not apply to rpm-ostree layering. |
 | `--dry-run` | None | Show what would happen without making changes. |
 | `-h`, `--help` | None | Show help and exit. |
 
@@ -138,8 +157,11 @@ The script does not edit shell rc files automatically; you must add this line ma
 ./install-neovim.sh                              # Install latest stable
 ./install-neovim.sh --version v0.10.2            # Install specific version
 ./install-neovim.sh --version nightly            # Install nightly build
+./install-neovim.sh --no-aliases                 # Install without vim/vi aliases
 ./install-neovim.sh --method package --allow-layering  # Use package manager with layering
 ./install-neovim.sh --dry-run                    # Preview what would happen
+./install-neovim.sh --install-deps               # Install tree-sitter CLI via Homebrew
+./install-neovim.sh --install-deps --with-plugins --yes  # Install deps, then set up plugins
 ./install-neovim.sh --with-plugins               # Extend NvChad config
 ./install-neovim.sh --uninstall                  # Remove tarball installation
 ./install-neovim.sh --rollback                   # Revert to previous version
@@ -152,10 +174,13 @@ The script does not edit shell rc files automatically; you must add this line ma
 
 | Command | Purpose |
 |---------|---------|
-| `./install-neovim.sh` | Install latest stable version |
+| `./install-neovim.sh` | Install latest stable version (default: creates `vim`/`vi`/`neovim` aliases) |
+| `./install-neovim.sh --no-aliases` | Install latest stable without aliases |
 | `./install-neovim.sh --dry-run` | Preview changes without installing |
 | `./install-neovim.sh --version v0.10.2` | Install a specific version |
 | `./install-neovim.sh --version nightly` | Install nightly build |
+| `./install-neovim.sh --install-deps` | Install tree-sitter CLI via Homebrew |
+| `./install-neovim.sh --install-deps --with-plugins --yes` | Install dependencies, then set up plugins without prompts |
 | `./install-neovim.sh --check-deps` | List missing optional runtime dependencies |
 | `./install-neovim.sh --with-plugins` | Extend NvChad config with parsers, LSP tools, and plugins |
 | `./install-neovim.sh --with-plugins --no-sync` | Set up plugins without headless sync |
@@ -261,10 +286,12 @@ The `--check-deps` action reports missing optional Neovim runtime dependencies:
 - `npm` (Node.js) — used by Mason for Node.js-based language servers (html, css, etc.)
 - `tree-sitter` CLI — needed by nvim-treesitter's main branch to compile parsers
 
-Neovim runs without these, but they unlock additional functionality. The script never installs them; it only reports which are missing and suggests how to install them via your distro's package manager.
+Neovim runs without these, but they unlock additional functionality. The script reports which are missing and suggests how to install them via your distro's package manager. For the `tree-sitter` CLI, you can also use the `--install-deps` action to install it via Homebrew:
 
 ```bash
-./install-neovim.sh --check-deps
+./install-neovim.sh --check-deps          # List missing dependencies
+./install-neovim.sh --install-deps        # Install tree-sitter CLI via Homebrew (interactive)
+./install-neovim.sh --install-deps --yes  # Install without prompting
 ```
 
 ## Optional Plugin Setup (--with-plugins)
@@ -274,7 +301,7 @@ The `--with-plugins` flag extends an existing NvChad v2.5 or lazy.nvim configura
 ### What It Does
 
 - **Treesitter parsers**: Installs these language parsers: lua, vim, vimdoc, bash, python, markdown, markdown_inline, powershell, yaml, json, html, css, regex.
-- **Mason language servers and tools**: Installs bash-language-server, lua-language-server, powershell-editor-services, shellcheck, shfmt, stylua, html-lsp, css-lsp.
+- **Mason language servers and tools**: Installs bash-language-server, lua-language-server, shellcheck, shfmt, stylua, html-lsp, css-lsp.
 - **Extra plugins**: nvim-lint (for linting with shellcheck), flash.nvim (for motion), render-markdown.nvim (for markdown rendering).
 - **Spell support**: Sets spelllang to en_us and de_de (English and German), and enables spell checking for markdown, text, and gitcommit file types.
 - **Spell files**: Fetches en.utf-8.spl and de.utf-8.spl from the official Vim spell server.
@@ -315,13 +342,16 @@ To skip all prompts and proceed without the sync:
 
 ### Extra Runtime Requirements
 
-`--with-plugins` assumes some additional tools for the plugins to work correctly. The script only reports these; it does not install them:
+`--with-plugins` assumes some additional tools for the plugins to work correctly:
 
-- **tree-sitter CLI** — Required by nvim-treesitter's main branch to compile parsers. Install via `cargo install tree-sitter-cli`, `npm install -g tree-sitter-cli`, or your distro's package manager (e.g., `dnf install tree-sitter-cli` on Fedora).
-- **pwsh** (PowerShell 7+) — Required to run the `powershell-editor-services` Mason package. If not present, Mason will report it missing but the rest of the setup continues.
-- **fd** — Used by NvChad's Telescope integration for fast file picking.
+- **tree-sitter CLI** — Required by nvim-treesitter's main branch to compile parsers. Install via `--install-deps` (Homebrew), `cargo install tree-sitter-cli`, `npm install -g tree-sitter-cli`, or your distro's package manager (e.g., `dnf install tree-sitter-cli` on Fedora).
+- **fd** — Used by NvChad's Telescope integration for fast file picking. Install via your distro's package manager.
 
-The script prints these notes at startup so you can install them in advance if needed.
+The script prints these notes at startup so you can install them in advance if needed. To install tree-sitter CLI via Homebrew without prompting:
+
+```bash
+./install-neovim.sh --install-deps --yes
+```
 
 ## Uninstall
 

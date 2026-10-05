@@ -14,6 +14,7 @@ PREVIOUS_LINK="$INSTALL_ROOT/previous"
 CURRENT_BIN="$CURRENT_LINK/bin/nvim"
 BIN_DIR="$HOME/.local/bin"
 BIN_LINK="$BIN_DIR/nvim"
+ALIAS_NAMES=(neovim vim vi)
 NVIM_CONFIG_DIR="$XDG_CONFIG_HOME/nvim"
 PLUGINS_DIR="$NVIM_CONFIG_DIR/lua/plugins"
 EXTRAS_FILE="$PLUGINS_DIR/extras.lua"
@@ -24,7 +25,7 @@ SPELL_BASE_URL="https://ftp.nluug.nl/pub/vim/runtime/spell"
 SPELL_LANGS=(en de)
 
 TREESITTER_PARSERS=(lua vim vimdoc bash python markdown markdown_inline powershell yaml json html css regex)
-MASON_PACKAGES=(bash-language-server lua-language-server powershell-editor-services shellcheck shfmt stylua html-lsp css-lsp)
+MASON_PACKAGES=(bash-language-server lua-language-server shellcheck shfmt stylua html-lsp css-lsp)
 
 VERSION_ARG="stable"
 METHOD="tarball"
@@ -33,6 +34,7 @@ ASSUME_YES=0
 DRY_RUN=0
 WITH_PLUGINS=0
 NO_SYNC=0
+CREATE_ALIASES=1
 ACTION="install"
 
 TMPDIR_CREATED=""
@@ -71,6 +73,35 @@ Options:
                                    installed tarball version.
   --check-deps                    Report missing optional runtime
                                    dependencies and exit. No install.
+  --install-deps                  Install missing optional dependencies
+                                   (currently: the tree-sitter CLI) via
+                                   Homebrew. Only runs when brew is found
+                                   on PATH or at
+                                   /home/linuxbrew/.linuxbrew/bin/brew or
+                                   ~/.linuxbrew/bin/brew; otherwise dies
+                                   with a pointer to https://brew.sh.
+                                   Never installs Homebrew itself and
+                                   never uses sudo. Prompts for
+                                   confirmation (default No) unless
+                                   --yes/-y. Honors --dry-run (prints the
+                                   exact brew command, installs nothing).
+                                   An action on its own (does not install
+                                   Neovim); combine with --with-plugins
+                                   to install deps first, then set up
+                                   plugins. Mutually exclusive with
+                                   --uninstall, --rollback, and
+                                   --check-deps.
+  --no-aliases                    Skip creating the neovim/vim/vi command
+                                   aliases in ~/.local/bin that this
+                                   script creates by default next to
+                                   nvim (tarball-method install and
+                                   --rollback only; other --method
+                                   values and --install-deps/--check-deps/
+                                   --uninstall do not touch aliases).
+                                   Existing files, or symlinks pointing
+                                   somewhere other than this script's own
+                                   nvim target, are always left alone
+                                   regardless of this flag.
   --with-plugins                  Extend an existing NvChad/lazy.nvim
                                    config (at \$XDG_CONFIG_HOME/nvim) with
                                    treesitter parsers, Mason LSP/lint/
@@ -90,9 +121,10 @@ Options:
                                    skip the headless Lazy/Mason install
                                    step.
   --yes, -y                       Assume yes on confirmation prompts
-                                   (currently: --uninstall, and writing
-                                   the --with-plugins managed files).
-                                   Never applies to rpm-ostree layering.
+                                   (currently: --uninstall, --install-deps,
+                                   and writing the --with-plugins managed
+                                   files). Never applies to rpm-ostree
+                                   layering.
   --dry-run                       Show what would happen, change nothing.
   -h, --help                      Show this help and exit.
 
@@ -101,6 +133,9 @@ Examples:
   ${SCRIPT_NAME} --version v0.10.2
   ${SCRIPT_NAME} --version nightly
   ${SCRIPT_NAME} --method package --allow-layering
+  ${SCRIPT_NAME} --no-aliases
+  ${SCRIPT_NAME} --install-deps
+  ${SCRIPT_NAME} --install-deps --with-plugins --yes
   ${SCRIPT_NAME} --with-plugins
   ${SCRIPT_NAME} --with-plugins --no-sync --yes
   ${SCRIPT_NAME} --uninstall
@@ -151,6 +186,15 @@ parse_args() {
         action_set=$((action_set + 1))
         shift
         ;;
+      --install-deps)
+        ACTION="install-deps"
+        action_set=$((action_set + 1))
+        shift
+        ;;
+      --no-aliases)
+        CREATE_ALIASES=0
+        shift
+        ;;
       --with-plugins)
         WITH_PLUGINS=1
         shift
@@ -179,7 +223,7 @@ parse_args() {
   done
 
   if [[ "$action_set" -gt 1 ]]; then
-    die "--uninstall, --rollback and --check-deps are mutually exclusive"
+    die "--uninstall, --rollback, --check-deps and --install-deps are mutually exclusive"
   fi
 
   case "$VERSION_ARG" in
@@ -193,12 +237,16 @@ parse_args() {
     *) die "invalid --method value: $METHOD (expected tarball, flatpak, package, or brew)" ;;
   esac
 
-  if [[ "$WITH_PLUGINS" -eq 1 && "$ACTION" != "install" ]]; then
-    die "--with-plugins only applies to the install action, not --uninstall, --rollback, or --check-deps"
+  if [[ "$WITH_PLUGINS" -eq 1 && "$ACTION" != "install" && "$ACTION" != "install-deps" ]]; then
+    die "--with-plugins only applies to the install or --install-deps actions, not --uninstall, --rollback, or --check-deps"
   fi
 
   if [[ "$NO_SYNC" -eq 1 && "$WITH_PLUGINS" -ne 1 ]]; then
     die "--no-sync requires --with-plugins"
+  fi
+
+  if [[ "$CREATE_ALIASES" -eq 0 && "$ACTION" != "install" && "$ACTION" != "rollback" ]]; then
+    die "--no-aliases only applies to the default install action or --rollback, not --uninstall, --check-deps, or --install-deps"
   fi
 }
 
@@ -398,6 +446,107 @@ diagnose_binary_failure() {
   esac
 }
 
+check_alias_path_shadowing() {
+  local -a path_entries
+  IFS=':' read -r -a path_entries <<< "$PATH"
+
+  local bin_dir_pos=-1 usr_bin_pos=-1 i=0 entry
+  for entry in "${path_entries[@]}"; do
+    if [[ "$bin_dir_pos" -eq -1 && "$entry" == "$BIN_DIR" ]]; then
+      bin_dir_pos=$i
+    fi
+    if [[ "$usr_bin_pos" -eq -1 && "$entry" == "/usr/bin" ]]; then
+      usr_bin_pos=$i
+    fi
+    i=$((i + 1))
+  done
+
+  if [[ "$bin_dir_pos" -eq -1 || "$usr_bin_pos" -eq -1 ]]; then
+    return 0
+  fi
+
+  if [[ "$bin_dir_pos" -gt "$usr_bin_pos" ]]; then
+    log_info "Note: ${BIN_DIR} comes after /usr/bin on your PATH, so the vim/vi aliases"
+    log_info "here will not shadow the system vim/vi until ${BIN_DIR} is moved earlier"
+    log_info "on PATH. This never affects sudo/root sessions or anything invoking"
+    log_info "/usr/bin/vim or /usr/bin/vi by absolute path."
+  fi
+}
+
+create_aliases() {
+  if [[ "$CREATE_ALIASES" -ne 1 ]]; then
+    return 0
+  fi
+
+  local name path existing_target
+  for name in "${ALIAS_NAMES[@]}"; do
+    path="$BIN_DIR/$name"
+
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      if [[ -L "$path" ]]; then
+        existing_target="$(readlink "$path")"
+        if [[ "$existing_target" == "$CURRENT_BIN" ]]; then
+          log_info "[dry-run] ${path} already links to ${CURRENT_BIN}; no change"
+        elif [[ "$existing_target" == "$CURRENT_LINK" ]]; then
+          log_info "[dry-run] would repair ${path}: '${existing_target}' -> '${CURRENT_BIN}'"
+        else
+          log_warn "[dry-run] ${path} is a symlink to '${existing_target}', not managed by this script; would leave it alone"
+        fi
+      elif [[ -e "$path" ]]; then
+        log_warn "[dry-run] ${path} exists and is not a symlink; would leave it alone"
+      else
+        log_info "[dry-run] would link ${path} -> ${CURRENT_BIN}"
+      fi
+      continue
+    fi
+
+    if [[ -L "$path" ]]; then
+      existing_target="$(readlink "$path")"
+      if [[ "$existing_target" == "$CURRENT_BIN" ]]; then
+        continue
+      elif [[ "$existing_target" == "$CURRENT_LINK" ]]; then
+        log_warn "repairing ${path}: '${existing_target}' -> '${CURRENT_BIN}'"
+        ln -sfn "$CURRENT_BIN" "$path"
+      else
+        log_warn "${path} is a symlink to '${existing_target}', not managed by this script; leaving it alone"
+        continue
+      fi
+    elif [[ -e "$path" ]]; then
+      log_warn "${path} already exists and is not a symlink; leaving it alone"
+      continue
+    else
+      ln -sfn "$CURRENT_BIN" "$path"
+    fi
+
+    local alias_verify_err="$TMPDIR_CREATED/alias-${name}-verify.err"
+    local alias_verify_rc=0
+    verify_nvim_runs "$path" "$alias_verify_err" || alias_verify_rc=$?
+    if [[ "$alias_verify_rc" -ne 0 ]]; then
+      diagnose_binary_failure "$path" "$alias_verify_rc" "$alias_verify_err"
+      log_warn "alias ${path} was created but does not run (exit ${alias_verify_rc}); leaving it in place for inspection"
+    fi
+  done
+
+  check_alias_path_shadowing
+}
+
+locate_brew() {
+  if command -v brew >/dev/null 2>&1; then
+    command -v brew
+    return 0
+  fi
+
+  local candidate
+  for candidate in /home/linuxbrew/.linuxbrew/bin/brew "$HOME/.linuxbrew/bin/brew"; do
+    if [[ -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 check_deps() {
   local missing=()
 
@@ -451,6 +600,10 @@ check_deps() {
       if command -v npm >/dev/null 2>&1; then
         log_info "  or: npm install -g tree-sitter-cli"
       fi
+      if locate_brew >/dev/null 2>&1; then
+        log_info "  or: brew install tree-sitter-cli   (confirmed on Homebrew for Linux)"
+      fi
+      log_info "  or: ${SCRIPT_NAME} --install-deps   (uses brew if it is already set up)"
       log_info "  package names on other distros are not verified here; check your package manager."
     fi
   fi
@@ -458,7 +611,8 @@ check_deps() {
   log_info "Note: if you use Mason (plugin-managed LSP/DAP/formatter installer), it also"
   log_info "expects git, curl or wget, and tar/unzip/gzip to fetch and unpack packages;"
   log_info "treesitter parsers need a C compiler (checked above). These are informational"
-  log_info "notes only; none of them are installed by this script."
+  log_info "notes only; this script only installs the tree-sitter CLI, and only via the"
+  log_info "explicit ${SCRIPT_NAME} --install-deps opt-in."
 }
 
 confirm_or_die() {
@@ -472,6 +626,41 @@ confirm_or_die() {
     y|Y|yes|YES) return 0 ;;
     *) die "aborted by user" ;;
   esac
+}
+
+install_deps() {
+  local -a missing_formulae=()
+  command -v tree-sitter >/dev/null 2>&1 || missing_formulae+=(tree-sitter-cli)
+
+  if [[ "${#missing_formulae[@]}" -eq 0 ]]; then
+    log_info "tree-sitter is already on PATH; nothing to install."
+    return 0
+  fi
+
+  local brew_bin
+  if ! brew_bin="$(locate_brew)"; then
+    die "brew not found on PATH, /home/linuxbrew/.linuxbrew/bin/brew, or ~/.linuxbrew/bin/brew; install Homebrew first: https://brew.sh (this script never installs brew itself)"
+  fi
+
+  local -a brew_cmd=("$brew_bin" install "${missing_formulae[@]}")
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    log_info "[dry-run] would run: ${brew_cmd[*]}"
+    return 0
+  fi
+
+  confirm_or_die "Install ${missing_formulae[*]} via Homebrew (${brew_bin})?"
+
+  "${brew_cmd[@]}"
+
+  local pkg
+  for pkg in "${missing_formulae[@]}"; do
+    case "$pkg" in
+      tree-sitter-cli)
+        command -v tree-sitter >/dev/null 2>&1 || log_warn "brew install tree-sitter-cli finished, but 'tree-sitter' is still not on PATH; check 'brew --prefix' is on PATH."
+        ;;
+    esac
+  done
 }
 
 do_install_tarball() {
@@ -520,6 +709,7 @@ do_install_tarball() {
       log_info "Neovim $verdir is already installed and active; nothing to do."
       mkdir -p "$BIN_DIR"
       ln -sfn "$CURRENT_BIN" "$BIN_LINK"
+      create_aliases
       check_path_warning
       return 0
     fi
@@ -542,6 +732,7 @@ do_install_tarball() {
       log_info "[dry-run] would keep previous version at: ${PREVIOUS_LINK} -> ${current_target}"
     fi
     log_info "[dry-run] would symlink ${BIN_LINK} -> ${CURRENT_BIN}"
+    create_aliases
     return 0
   fi
 
@@ -595,6 +786,7 @@ do_install_tarball() {
 
   log_info "Installed Neovim ($verdir) -> $BIN_LINK"
   "$BIN_LINK" --version | head -n1
+  create_aliases
   check_path_warning
 }
 
@@ -648,6 +840,8 @@ do_rollback() {
     die "rolled-back Neovim binary at ${BIN_LINK} does not run (exit ${rollback_verify_rc})"
   fi
 
+  create_aliases
+
   log_info "Rolled back to $(basename "$prev_target")"
   "$BIN_LINK" --version | head -n1
 }
@@ -658,8 +852,17 @@ do_uninstall() {
   [[ "$INSTALL_ROOT" == "$expected_root" ]] || die "refusing to uninstall: unexpected path $INSTALL_ROOT"
   [[ "$(basename "$INSTALL_ROOT")" == "nvim-install" ]] || die "refusing to uninstall: unexpected directory name"
 
+  local -a all_links=("$BIN_LINK")
+  local alias_name
+  for alias_name in "${ALIAS_NAMES[@]}"; do
+    all_links+=("$BIN_DIR/$alias_name")
+  done
+
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    log_info "[dry-run] would remove: $BIN_LINK (if it points into $INSTALL_ROOT)"
+    local link
+    for link in "${all_links[@]}"; do
+      log_info "[dry-run] would remove: $link (if it points into $INSTALL_ROOT)"
+    done
     log_info "[dry-run] would remove: $INSTALL_ROOT"
     return 0
   fi
@@ -672,19 +875,21 @@ do_uninstall() {
     log_info "Removed $INSTALL_ROOT"
   fi
 
-  if [[ -L "$BIN_LINK" ]]; then
-    local target
-    target="$(readlink "$BIN_LINK")"
-    case "$target" in
-      "$INSTALL_ROOT"*)
-        rm -f "$BIN_LINK"
-        log_info "Removed $BIN_LINK"
-        ;;
-      *)
-        log_warn "$BIN_LINK does not point into $INSTALL_ROOT; leaving it alone"
-        ;;
-    esac
-  fi
+  local link target
+  for link in "${all_links[@]}"; do
+    if [[ -L "$link" ]]; then
+      target="$(readlink "$link")"
+      case "$target" in
+        "$INSTALL_ROOT"*)
+          rm -f "$link"
+          log_info "Removed $link"
+          ;;
+        *)
+          log_warn "$link does not point into $INSTALL_ROOT; leaving it alone"
+          ;;
+      esac
+    fi
+  done
 }
 
 do_flatpak() {
@@ -807,7 +1012,6 @@ extras_lua_contents() {
 local mason_packages = {
   "bash-language-server",
   "lua-language-server",
-  "powershell-editor-services",
   "shellcheck",
   "shfmt",
   "stylua",
@@ -1115,8 +1319,7 @@ setup_plugins() {
     die "no lazy.nvim-style config found: ${PLUGINS_DIR} does not exist; refusing to bootstrap a new Neovim config. --with-plugins only extends an existing NvChad/lazy.nvim setup"
   fi
 
-  log_info "nvim-treesitter's main branch needs the 'tree-sitter' CLI to compile parsers; see --check-deps."
-  log_info "The powershell-editor-services Mason package needs 'pwsh' (PowerShell 7+) on PATH to run it; this script does not install pwsh."
+  log_info "nvim-treesitter's main branch needs the 'tree-sitter' CLI to compile parsers; see --check-deps or ${SCRIPT_NAME} --install-deps."
   log_info "fd (or fdfind) is used by NvChad/Telescope file pickers; see --check-deps."
   log_info "NvChad's lua/configs/lazy.lua disables Vim's netrw plugins, which Vim's own interactive spell-file download depends on; this script fetches the en/de spell files itself instead."
 
@@ -1199,6 +1402,13 @@ main() {
       ;;
     rollback)
       do_rollback
+      exit 0
+      ;;
+    install-deps)
+      install_deps
+      if [[ "$WITH_PLUGINS" -eq 1 ]]; then
+        setup_plugins
+      fi
       exit 0
       ;;
   esac

@@ -42,6 +42,27 @@ Die Standard-Installationsmethode nutzt das offizielle Release-Tarball von GitHu
 
 Der Symlink `~/.local/bin/nvim` zeigt auf die aktuelle ausführbare Datei.
 
+## Aliase für `vim` und `vi`
+
+Standardmäßig erstellt das Skript bei der Tarball-Installation und beim Rollback zusätzliche Symlinks in `~/.local/bin`:
+
+- `neovim` → zeigt auf die gleiche Binärdatei wie `nvim`
+- `vim` → zeigt auf die gleiche Binärdatei wie `nvim`
+- `vi` → zeigt auf die gleiche Binärdatei wie `nvim`
+
+Dies erlaubt es, Neovim mit `vim` oder `vi` zu starten. Diese Aliase überlagern nur die System-Befehle (`/usr/bin/vim`, `/usr/bin/vi`), wenn `~/.local/bin` im PATH vor `/usr/bin` angeordnet ist. Sudo-Sitzungen und absolute Pfade (z. B. `/usr/bin/vi`) bleiben unberührt.
+
+Existierende Dateien oder Symlinks, die auf andere Ziele verweisen (z. B. eine selbst verwaltete `vi`-Konfiguration), werden übersprungen.
+
+Die Alias-Erstellung kann mit `--no-aliases` deaktiviert werden:
+
+```bash
+./install-neovim.sh --no-aliases
+./install-neovim.sh --rollback --no-aliases
+```
+
+Diese Option gilt nur für die Tarball-Methode und `--rollback`. Andere Installationsmethoden (`flatpak`, `package`, `brew`) und die Aktionen `--uninstall`, `--check-deps`, `--install-deps` berühren Aliase nicht.
+
 ## Weitere Installationsmethoden
 
 ### Flatpak
@@ -90,9 +111,11 @@ Voraussetzung: Homebrew muss installiert sein.
 | `--uninstall` | Tarball-Installation entfernen (Versionsverzeichnisse und Symlinks). |
 | `--rollback` | Zur zuvor installierten Tarball-Version zurückwechseln. |
 | `--check-deps` | Optionale Laufzeit-Abhängigkeiten überprüfen und Installationshinweise anzeigen. Keine Installation. |
+| `--install-deps` | Fehlende optional dependencies via Homebrew installieren (tree-sitter-cli). Nur wenn brew gefunden wird. Keine Installation von Homebrew selbst. Fragt um Bestätigung (Standard: Nein), außer mit `--yes/-y`. Ehrt `--dry-run`. Mit `--with-plugins` kombinierbar. Ausschließlich mit `--uninstall`, `--rollback`, `--check-deps`. |
+| `--no-aliases` | Erstellen der `neovim`-, `vim`- und `vi`-Symlinks in ~/.local/bin überspringen (nur bei Tarball-Installation und `--rollback`; andere Methoden berühren Aliases nicht). Existierende Dateien und fremde Symlinks werden immer stehen gelassen. |
 | `--with-plugins` | Bestehende NvChad/lazy.nvim-Konfiguration mit Treesitter, Mason, Linting und Rechtschreibung erweitern. |
 | `--no-sync` | Mit `--with-plugins`: Managed Files schreiben, Rechtschreibwörterbücher laden, aber Lazy/Mason-Installationen überspringen. |
-| `--yes, -y` | Auf Bestätigungsabfragen mit „ja" antworten (uninstall, `--with-plugins` Write; **nicht** rpm-ostree-Layering). |
+| `--yes, -y` | Auf Bestätigungsabfragen mit „ja" antworten (`--uninstall`, `--install-deps`, `--with-plugins`-Schreibvorgänge; **nicht** rpm-ostree-Layering). |
 | `--dry-run` | Geplante Änderungen anzeigen, nichts ausführen. |
 | `-h, --help` | Hilfe anzeigen. |
 
@@ -112,9 +135,9 @@ Das Skript prüft auf folgende optionale Abhängigkeiten und meldet fehlende:
 - `npm` (Node.js, erforderlich für Mason npm-basierte Server wie html und cssls)
 - `tree-sitter` CLI (erforderlich für nvim-treesitter main branch)
 
-Das Skript zeigt paketmanager-spezifische Installationshinweise an, installiert diese Abhängigkeiten aber nie selbst.
+Das Skript zeigt paketmanager-spezifische Installationshinweise an. Für die `tree-sitter` CLI kann alternativ `./install-neovim.sh --install-deps` genutzt werden, um dieses Tool via Homebrew zu installieren (sofern Homebrew bereits eingerichtet ist).
 
-**Hinweis**: Mason (Lazy-Plugin-Verwalter für LSP/DAP/Formatter) benötigt zusätzlich git, curl oder wget, tar/unzip/gzip und einen C-Compiler. Diese sind nur informativ; das Skript installiert sie nicht.
+**Hinweis**: Mason (Lazy-Plugin-Verwalter für LSP/DAP/Formatter) benötigt zusätzlich git, curl oder wget, tar/unzip/gzip und einen C-Compiler. Diese sind nur informativ; das Skript installiert sie nicht (ausgenommen `--install-deps` für die tree-sitter CLI).
 
 ## Konfiguration mit `--with-plugins` erweitern
 
@@ -130,7 +153,7 @@ Das Skript schreibt zwei verwaltete Dateien (nur falls nicht vorhanden):
 
 **`lua/plugins/extras.lua`** – Folgende Plugins und Konfigurationen:
 - **nvim-treesitter**: Parser für lua, vim, vimdoc, bash, python, markdown, markdown_inline, powershell, yaml, json, html, css, regex
-- **mason.nvim**: Paketmanager für Language Server und Linting-Tools: bash-language-server, lua-language-server, powershell-editor-services, shellcheck, shfmt, stylua, html-lsp, css-lsp
+- **mason.nvim**: Paketmanager für Language Server und Linting-Tools: bash-language-server, lua-language-server, shellcheck, shfmt, stylua, html-lsp, css-lsp
 - **nvim-lint**: Linting für Shell-Skripte (shellcheck)
 - **flash.nvim**: Schnelle Navigation
 - **render-markdown.nvim**: Markdown-Rendering
@@ -154,10 +177,11 @@ Das Skript schreibt zwei verwaltete Dateien (nur falls nicht vorhanden):
 Für `--with-plugins` sind diese Tools erforderlich oder empfohlen:
 
 - `tree-sitter` CLI (für nvim-treesitter, Hauptbranch)
-- `pwsh` (PowerShell 7+, für powershell-editor-services)
 - `fd` (oder `fdfind`, für NvChad/Telescope Datei-Picker)
 
-Lautet: `./install-neovim.sh --check-deps` für alle erforderlichen Abhängigkeiten.
+Die `tree-sitter` CLI kann über `./install-neovim.sh --install-deps` via Homebrew installiert werden (sofern brew bereits eingerichtet ist).
+
+Alle fehlenden Abhängigkeiten überprüfen: `./install-neovim.sh --check-deps`
 
 ### Beispiele
 
@@ -171,6 +195,38 @@ Nur Managed Files schreiben und Wörterbücher laden, Lazy/Mason überspringen:
 
 ```bash
 ./install-neovim.sh --with-plugins --no-sync --yes
+```
+
+Mit `--install-deps` kombinieren (Dependencies zuerst installieren):
+
+```bash
+./install-neovim.sh --install-deps --with-plugins
+```
+
+## Optionale Dependencies mit `--install-deps` installieren
+
+```bash
+./install-neovim.sh --install-deps
+```
+
+Diese Aktion installiert fehlende optionale Dependencies (tree-sitter-cli) ausschließlich über Homebrew:
+
+- Findet Homebrew im PATH oder an den üblichen Linux-Homebrew-Orten (`/home/linuxbrew/.linuxbrew/bin/brew`, `~/.linuxbrew/bin/brew`)
+- Installiert Homebrew selbst nicht und nutzt niemals sudo
+- Prüft, welche Tools bereits vorhanden sind, und installiert nur das Fehlende
+- Fragt um Bestätigung (Standard: Nein), es sei denn `--yes` oder `-y` wird übergeben
+- Mit `--dry-run` wird der exakte Brew-Befehl angezeigt, ohne etwas zu installieren
+- `--install-deps` ist eine eigenständige Aktion (installiert nicht Neovim)
+- Kann mit `--with-plugins` kombiniert werden (Dependencies werden zuerst installiert, dann Plugins eingerichtet)
+- Gegenseitig ausschließend mit `--uninstall`, `--rollback`, `--check-deps`
+
+Beispiele:
+
+```bash
+./install-neovim.sh --install-deps
+./install-neovim.sh --install-deps --yes
+./install-neovim.sh --install-deps --with-plugins
+./install-neovim.sh --install-deps --with-plugins --yes
 ```
 
 ## PATH-Konfiguration
@@ -209,6 +265,7 @@ Minimal erforderlich:
 Optional:
 
 - `jq` (zur effizienteren JSON-Verarbeitung; das Skript fällt auf `awk` zurück)
+- Homebrew (nur für `--install-deps` erforderlich; das Skript sucht nach brew im PATH oder an den üblichen Linux-Homebrew-Orten und installiert Homebrew selbst nicht)
 
 ## Einschränkungen
 
@@ -221,12 +278,17 @@ Optional:
 
 | Befehl | Zweck |
 |--------|-------|
-| `./install-neovim.sh` | Standard-Installation (stabile Version) |
+| `./install-neovim.sh` | Standard-Installation (stabile Version); Symlinks `neovim`, `vim`, `vi` werden angelegt |
 | `./install-neovim.sh --dry-run` | Geplante Änderungen anzeigen, ohne zu installieren |
 | `./install-neovim.sh --version nightly` | Nightly-Build installieren |
 | `./install-neovim.sh --version v0.10.2` | Spezifische Version installieren |
+| `./install-neovim.sh --no-aliases` | Standard-Installation ohne Symlinks für `neovim`, `vim`, `vi` |
 | `./install-neovim.sh --check-deps` | Optionale Abhängigkeiten überprüfen |
-| `./install-neovim.sh --rollback` | Zur vorherigen Version zurückwechseln |
+| `./install-neovim.sh --install-deps` | Fehlende tree-sitter-CLI via Homebrew installieren (interaktive Bestätigung) |
+| `./install-neovim.sh --install-deps --yes` | Fehlende tree-sitter-CLI via Homebrew installieren (ohne Bestätigung) |
+| `./install-neovim.sh --install-deps --with-plugins` | Dependencies installieren, dann Plugins einrichten |
+| `./install-neovim.sh --rollback` | Zur vorherigen Version zurückwechseln (Symlinks werden angelegt) |
+| `./install-neovim.sh --rollback --no-aliases` | Rollback ohne Symlink-Erstellung |
 | `./install-neovim.sh --uninstall` | Installation entfernen |
 | `./install-neovim.sh --with-plugins` | Mit Plugins (Treesitter, Mason, LSP, Rechtschreibung) erweitern |
 | `./install-neovim.sh --with-plugins --no-sync --yes` | Plugins konfigurieren, aber Lazy/Mason nicht synkronisieren |
